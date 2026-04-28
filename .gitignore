@@ -1,0 +1,46 @@
+# Environment - JANGAN pernah push ke repo
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Data & Output (generate di runtime)
+data/*.db
+data/*.sqlite
+output/
+
+# Thesis & dokumen pribadi
+BAB_4_CRISP_DM.txt
+BAB_4_RANCANGAN_SISTEM.txt
+*.pdf
+diagrams/
+aturankerja/
+arsitektur/
+blueprint_*.md
+checkpoint.csv
+docker_*.txt
+ketentuanbekerja.md
+Jawabantemen.md
+PROMPT_DRAWIO.md
+propmt.md
+pertanyaan_interactive_msg.md
+pedoman_skripsi.txt
+respon_untuk_teman.md
+saran dari dosen.txt
+data/
+check_vps.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

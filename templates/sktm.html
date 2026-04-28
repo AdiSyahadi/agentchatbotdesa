@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm 2.5cm;
+        }
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+        }
+        .kop-surat {
+            text-align: center;
+            border-bottom: 3px double #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .kop-surat h2 {
+            margin: 0;
+            font-size: 14pt;
+            text-transform: uppercase;
+        }
+        .kop-surat h3 {
+            margin: 0;
+            font-size: 16pt;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .kop-surat p {
+            margin: 2px 0;
+            font-size: 10pt;
+        }
+        .judul-surat {
+            text-align: center;
+            margin: 30px 0 5px 0;
+            font-size: 14pt;
+            font-weight: bold;
+            text-decoration: underline;
+            text-transform: uppercase;
+        }
+        .nomor-surat {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 11pt;
+        }
+        .isi-surat {
+            text-align: justify;
+            margin-bottom: 15px;
+        }
+        .data-table {
+            margin-left: 40px;
+            margin-bottom: 20px;
+        }
+        .data-table td {
+            padding: 3px 10px 3px 0;
+            vertical-align: top;
+        }
+        .data-table td:first-child {
+            width: 130px;
+        }
+        .data-table td:nth-child(2) {
+            width: 10px;
+            text-align: center;
+        }
+        .ttd-section {
+            margin-top: 40px;
+            text-align: right;
+            padding-right: 30px;
+        }
+        .ttd-section .tempat-tanggal {
+            margin-bottom: 5px;
+        }
+        .ttd-section .jabatan {
+            margin-bottom: 60px;
+        }
+        .ttd-section .nama-pejabat {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        .ttd-section .nip {
+            font-size: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="kop-surat">
+        <h2>Pemerintah {{ nama_kabupaten }}</h2>
+        <h2>{{ nama_kecamatan }}</h2>
+        <h3>Kantor Kepala Desa {{ nama_desa }}</h3>
+        <p>{{ nama_provinsi }}</p>
+    </div>
+
+    <div class="judul-surat">Surat Keterangan Tidak Mampu</div>
+    <div class="nomor-surat">Nomor: {{ nomor_surat }}</div>
+
+    <div class="isi-surat">
+        <p>Yang bertanda tangan di bawah ini, Kepala Desa {{ nama_desa }}, {{ nama_kecamatan }}, {{ nama_kabupaten }}, menerangkan bahwa:</p>
+    </div>
+
+    <table class="data-table">
+        <tr><td>Nama</td><td>:</td><td>{{ nama }}</td></tr>
+        <tr><td>NIK</td><td>:</td><td>{{ nik }}</td></tr>
+        <tr><td>Alamat</td><td>:</td><td>{{ alamat }}</td></tr>
+        <tr><td>Pekerjaan</td><td>:</td><td>{{ pekerjaan }}</td></tr>
+    </table>
+
+    <div class="isi-surat">
+        <p>Nama tersebut di atas adalah benar warga Desa {{ nama_desa }} yang menurut pengamatan kami termasuk keluarga yang <strong>tidak mampu/kurang mampu</strong>.</p>
+        <p>Surat keterangan ini dibuat untuk keperluan: <strong>{{ keperluan }}</strong>.</p>
+        <p>Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.</p>
+    </div>
+
+    <div class="ttd-section">
+        <div class="tempat-tanggal">{{ nama_desa }}, {{ tanggal_surat }}</div>
+        <div class="jabatan">Kepala Desa {{ nama_desa }},</div>
+        <div class="nama-pejabat">{{ nama_kepala_desa }}</div>
+        <div class="nip">NIP. {{ nip_kepala_desa }}</div>
+    </div>
+</body>
+</html>

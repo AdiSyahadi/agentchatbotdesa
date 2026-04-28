@@ -1,0 +1,37 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-desa
+    environment:
+      MYSQL_ROOT_PASSWORD: root_desa_2026
+      MYSQL_DATABASE: chatbot_desa
+      MYSQL_USER: chatbot
+      MYSQL_PASSWORD: chatbot_desa_2026
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_desa_2026"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  chatbot:
+    build: .
+    container_name: chatbot-desa
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
