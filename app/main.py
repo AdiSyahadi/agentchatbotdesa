@@ -177,12 +177,12 @@ async def webhook_handler(request: Request, session: AsyncSession = Depends(get_
                         logger.error(f"Error generate surat: {e}", exc_info=True)
                         await wa_client.send_text(
                             phone,
-                            "Maaf, terjadi kesalahan saat membuat surat. Silakan coba lagi dengan mengetik *halo*."
+                            "Maaf, terjadi kesalahan saat membuat surat. Silakan coba lagi dengan mengetik *menu*."
                         )
         except Exception as e:
             logger.error(f"Error processing message from {phone}: {e}", exc_info=True)
             try:
-                await wa_client.send_text(phone, "Maaf, terjadi kesalahan. Silakan coba lagi dengan mengetik *halo*.")
+                await wa_client.send_text(phone, "Maaf, terjadi kesalahan. Silakan coba lagi dengan mengetik *menu*.")
             except Exception:
                 pass
 
@@ -219,8 +219,17 @@ async def _handle_rag_question(phone: str, data: dict):
     try:
         import random
         answer = await ask_rag(phone, question)
-        footer = random.choice(_RAG_FOOTERS)
-        await wa_client.send_text(phone, answer + footer)
+        # Jangan tambah footer jika jawaban adalah pesan error/quota/off-topic
+        is_error_msg = any(phrase in answer for phrase in (
+            "layanan tanya jawab sedang sibuk",
+            "hanya bisa membantu terkait informasi",
+            "terjadi kesalahan",
+        ))
+        if is_error_msg:
+            await wa_client.send_text(phone, answer)
+        else:
+            footer = random.choice(_RAG_FOOTERS)
+            await wa_client.send_text(phone, answer + footer)
     except Exception as e:
         logger.error(f"RAG error for {phone}: {e}", exc_info=True)
         await wa_client.send_text(phone, "Maaf, terjadi kesalahan saat mencari informasi. Silakan coba lagi atau ketik *menu* untuk membuat surat.")
@@ -238,7 +247,7 @@ async def _handle_riwayat(session: AsyncSession, phone: str):
     rows = result.all()
 
     if not rows:
-        await wa_client.send_text(phone, "📋 Anda belum pernah membuat surat. Ketik *halo* untuk mulai.")
+        await wa_client.send_text(phone, "📋 Anda belum pernah membuat surat. Ketik *menu* untuk mulai.")
         return
 
     jenis_map = {"sktm": "SKTM", "domisili": "Domisili", "usaha": "Surat Usaha"}
@@ -248,7 +257,7 @@ async def _handle_riwayat(session: AsyncSession, phone: str):
         tanggal = surat.created_at.strftime("%d/%m/%Y %H:%M") if surat.created_at else "-"
         lines.append(f"{i}. *{jenis}* — {surat.nomor_surat}\n   Status: {surat.status} | {tanggal}")
 
-    msg = f"📋 *Riwayat Surat Anda* (5 terakhir):\n\n" + "\n\n".join(lines) + "\n\nKetik *halo* untuk membuat surat baru."
+    msg = f"📋 *Riwayat Surat Anda* (5 terakhir):\n\n" + "\n\n".join(lines) + "\n\nKetik *menu* untuk membuat surat baru."
     await wa_client.send_text(phone, msg)
 
 
