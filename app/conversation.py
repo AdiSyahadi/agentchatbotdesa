@@ -306,28 +306,39 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
         choice = parse_surat_choice(text)
 
         if choice is None:
-            gemini_choice = await _try_gemini_intent(text)
-            if gemini_choice in ("sktm", "domisili", "usaha"):
-                choice = gemini_choice
-            elif gemini_choice == "cancel":
-                _reset_session(session)
-                await db.commit()
-                return {"reply": _get_cancel_msg(display_name), "action": "reply", "data": {}}
+            # Hanya panggil Gemini jika pesan MUNGKIN pilihan surat (mengandung kata kunci surat)
+            # Pesan umum/casual langsung ke RAG — hemat token
+            _SURAT_HINT_WORDS = {"sktm", "domisili", "usaha", "surat", "mampu", "keterangan", "buat", "minta", "bikin", "urus"}
+            might_be_surat = any(w in text_lower for w in _SURAT_HINT_WORDS)
 
-        if choice is None:
+            if might_be_surat:
+                gemini_choice = await _try_gemini_intent(text)
+                if gemini_choice in ("sktm", "domisili", "usaha"):
+                    choice = gemini_choice
+                elif gemini_choice == "cancel":
+                    _reset_session(session)
+                    await db.commit()
+                    return {"reply": _get_cancel_msg(display_name), "action": "reply", "data": {}}
+
+        if choice:
+            return await _start_filling_verified(db, session, phone, choice, contact_name, display_name, show_step_count=True)
+
+        # Bukan pilihan surat → route ke RAG (jawab pertanyaan desa atau tolak off-topic)
+        # State tetap "choosing" agar user masih bisa pilih surat setelah dapat jawaban
+        from app.langchain_agent import is_quota_cooled_down
+        if is_quota_cooled_down():
             await db.commit()
             return {
                 "reply": (
-                    f"Hmm, saya belum mengerti pilihan Anda{' ' + display_name if display_name else ''} 🤔\n\n"
-                    f"Silakan pilih jenis surat:\n{MENU_TEXT}\n\n"
-                    f"Atau ketik pertanyaan tentang desa, misal:\n"
-                    f"_\"Apa program desa tahun ini?\"_"
+                    "Maaf, layanan tanya jawab sedang sibuk.\n\n"
+                    f"Silakan pilih jenis surat:\n{MENU_TEXT}"
                 ),
                 "action": "reply",
                 "data": {},
             }
 
-        return await _start_filling_verified(db, session, phone, choice, contact_name, display_name, show_step_count=True)
+        await db.commit()
+        return {"reply": "", "action": "ask_rag", "data": {"phone": phone, "question": text}}
 
     if session.state == "filling":
         steps = STEPS_MAP[session.jenis_surat]
