@@ -112,7 +112,15 @@ async def webhook_handler(request: Request, session: AsyncSession = Depends(get_
         if len(_processed_msg_ids) > MAX_DEDUP_CACHE:
             _processed_msg_ids.popitem(last=False)
 
-    phone = data.get("phone_number", "")
+    phone = data.get("phone_number") or ""
+    # Fallback: extract from 'from'/'sender_jid' when phone_number is null
+    # Handles @s.whatsapp.net (extract number) and @lid (keep full JID for API routing)
+    if not phone:
+        from_jid = data.get("from") or data.get("sender_jid") or ""
+        if "@s.whatsapp.net" in from_jid:
+            phone = from_jid.split("@")[0]
+        elif from_jid:
+            phone = from_jid  # Keep full JID e.g. "77864099643580@lid"
     contact_name = data.get("contact_name", "")
 
     if msg_type == "button_response":
@@ -132,7 +140,8 @@ async def webhook_handler(request: Request, session: AsyncSession = Depends(get_
     if not phone or not content:
         return JSONResponse(status_code=400, content={"error": "Missing phone or content"})
 
-    if "-" in phone or len(phone) > 15 or not phone.startswith("62"):
+    # Block group chats: format groupId-timestamp or group JID starting with 120363
+    if "-" in phone or phone.startswith("120363") or len(phone) > 20:
         logger.info(f"Non-personal chat ignored: {phone}")
         return JSONResponse(content={"status": "ignored", "reason": "non-personal chat"})
 
