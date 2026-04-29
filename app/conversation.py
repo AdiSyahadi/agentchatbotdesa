@@ -98,7 +98,7 @@ def _get_greeting(name: str = "") -> str:
 
 def _get_cancel_msg(name: str = "") -> str:
     sapaan = f" {name}" if name else ""
-    return f"Baik{sapaan}, proses dibatalkan. Ketik *halo* kapan saja kalau butuh bantuan lagi 🙏"
+    return f"Baik{sapaan}, proses dibatalkan. Ketik *menu* kapan saja kalau butuh bantuan lagi 🙏"
 
 HELP_KEYWORDS = {"halo", "hai", "hi", "hello", "menu", "mulai", "start", "help", "bantuan"}
 CANCEL_KEYWORDS = {"batal", "cancel", "keluar", "exit", "stop"}
@@ -211,7 +211,7 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
         if reg:
             if reg.status == "approved":
                 await db.commit()
-                return {"reply": f"Anda sudah terdaftar sebagai warga Desa {settings.NAMA_DESA} ✅\nNama: *{reg.nama}*\nNIK: {reg.nik}\n\nAnda bisa langsung gunakan layanan surat. Ketik *halo* untuk mulai.", "action": "reply", "data": {}}
+                return {"reply": f"Anda sudah terdaftar sebagai warga Desa {settings.NAMA_DESA} ✅\nNama: *{reg.nama}*\nNIK: {reg.nik}\n\nAnda bisa langsung gunakan layanan surat. Ketik *menu* untuk mulai.", "action": "reply", "data": {}}
             elif reg.status == "pending":
                 await db.commit()
                 return {"reply": "Pendaftaran Anda sedang *menunggu verifikasi* dari admin desa ⏳\n\nMohon tunggu, admin akan memproses pendaftaran Anda. Terima kasih.", "action": "reply", "data": {}}
@@ -325,7 +325,7 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
                 "reply": (
                     "Maaf, layanan tanya jawab sedang sibuk saat ini.\n\n"
                     "Silakan gunakan layanan lain:\n"
-                    "• Ketik *halo* — menu pembuatan surat\n"
+                    "• Ketik *menu* — menu pembuatan surat\n"
                     "• Ketik *iuran* — pembayaran iuran desa\n"
                     "• Ketik *riwayat* — cek riwayat surat\n\n"
                     "Atau coba tanya lagi dalam beberapa menit."
@@ -772,7 +772,7 @@ async def _handle_paying_iuran(db: AsyncSession, session: ChatSession, phone: st
             _reset_session(session)
             await db.commit()
             return {
-                "reply": "Pembayaran dibatalkan. Ketik *iuran* untuk mengulang atau *halo* untuk menu lain.",
+                "reply": "Pembayaran dibatalkan. Ketik *iuran* untuk mengulang atau *menu* untuk menu lain.",
                 "action": "reply",
                 "data": {},
             }

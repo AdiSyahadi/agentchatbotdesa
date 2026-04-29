@@ -228,16 +228,25 @@ async def _handle_send_qris(phone: str, text: str, data: dict):
 async def _handle_rag_question(phone: str, data: dict):
     question = data.get("question", "")
     if not question:
-        await wa_client.send_text(phone, "Silakan ketik pertanyaan Anda tentang desa, atau ketik *halo* untuk membuat surat.")
+        await wa_client.send_text(phone, "Silakan ketik pertanyaan Anda tentang desa, atau ketik *menu* untuk membuat surat.")
         return
 
+    _RAG_FOOTERS = [
+        "\n\n---\n💡 Ketik *menu* untuk membuat surat, atau lanjut bertanya.",
+        "\n\n---\nAda pertanyaan lain? Silakan ketik langsung. Ketik *menu* untuk layanan surat.",
+        "\n\n---\nSemoga membantu! Ketik *menu* jika perlu membuat surat.",
+        "\n\n---\nMasih ada yang ingin ditanyakan? Atau ketik *menu* untuk membuat surat.",
+        "\n\n---\nJangan ragu bertanya lagi. Ketik *menu* kapan saja untuk layanan surat.",
+    ]
+
     try:
+        import random
         answer = await ask_rag(phone, question)
-        footer = "\n\n---\n💡 Ketik *halo* untuk membuat surat, atau lanjut bertanya."
+        footer = random.choice(_RAG_FOOTERS)
         await wa_client.send_text(phone, answer + footer)
     except Exception as e:
         logger.error(f"RAG error for {phone}: {e}", exc_info=True)
-        await wa_client.send_text(phone, "Maaf, terjadi kesalahan saat mencari informasi. Silakan coba lagi atau ketik *halo* untuk membuat surat.")
+        await wa_client.send_text(phone, "Maaf, terjadi kesalahan saat mencari informasi. Silakan coba lagi atau ketik *menu* untuk membuat surat.")
 
 
 async def _handle_riwayat(session: AsyncSession, phone: str):
