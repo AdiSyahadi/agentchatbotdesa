@@ -260,6 +260,9 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
     if session.state == "registering":
         return await _handle_registering(db, session, phone, text, display_name)
 
+    if session.state == "confirming_nama":
+        return await _handle_confirming_nama(db, session, phone, text, display_name)
+
     if session.state == "idle":
         if text_lower in HELP_KEYWORDS:
             session.state = "choosing"
@@ -506,28 +509,73 @@ async def _start_filling_verified(db: AsyncSession, session: ChatSession, phone:
             "data": {},
         }
 
-    # status == approved — auto-fill nama + nik, skip to step 2 (alamat)
+    # status == approved — tanya konfirmasi nama sebelum lanjut
     surat_name = SURAT_TYPES[choice]
-    steps = STEPS_MAP[choice]
 
     session.jenis_surat = choice
-    session.state = "filling"
-    session.current_step = 2  # Skip nama (0) and nik (1)
-    session.set_data({"contact_name": contact_name, "nama": reg.nama, "nik": reg.nik})
-
-    next_step = steps[2]
-    total = len(steps)
-
-    header = f"Baik{' ' + display_name if display_name else ''}, saya bantu buatkan *{surat_name}* ya 📝\n\n"
-    autofill_info = f"✅ Data terverifikasi:\n• *Nama*: {reg.nama}\n• *NIK*: {reg.nik}\n\n"
-    if show_step_count:
-        header += f"Saya butuh {total - 2} data lagi dari Anda. Bisa ketik *ulang* kapan saja untuk kembali ke pertanyaan sebelumnya.\n\n"
+    session.state = "confirming_nama"
+    session.current_step = 0
+    session.set_data({"contact_name": contact_name, "nik": reg.nik, "reg_nama": reg.nama})
 
     await db.commit()
     return {
         "reply": (
-            f"{header}"
-            f"{autofill_info}"
+            f"Baik{' ' + display_name if display_name else ''}, saya bantu buatkan *{surat_name}* 📝\n\n"
+            f"✅ NIK terdaftar: *{reg.nik}*\n"
+            f"Nama terdaftar: *{reg.nama}*\n\n"
+            f"Apakah nama ini sudah sesuai dengan KTP Anda?\n"
+            f"• Ketik *YA* untuk lanjut\n"
+            f"• Atau ketik *nama lengkap* yang benar jika berbeda"
+        ),
+        "action": "reply",
+        "data": {},
+    }
+
+
+async def _handle_confirming_nama(db: AsyncSession, session: ChatSession, phone: str, text: str, display_name: str) -> dict:
+    """Handle nama confirmation step before filling surat. User can confirm or correct their name."""
+    data = session.get_data()
+    text_stripped = text.strip()
+    text_lower = text_stripped.lower()
+
+    choice = session.jenis_surat
+    steps = STEPS_MAP[choice]
+    total = len(steps)
+    next_step = steps[2]  # Step 3 = alamat
+
+    if text_lower in ("ya", "y", "yes", "iya", "benar", "betul", "ok", "oke"):
+        # Use registered name as-is
+        nama = data["reg_nama"]
+    else:
+        # Validate as a new name
+        valid, error_msg = validate_nama(text_stripped)
+        if not valid:
+            await db.commit()
+            return {
+                "reply": (
+                    f"⚠️ {error_msg}\n\n"
+                    f"Nama terdaftar: *{data['reg_nama']}*\n"
+                    f"Ketik *YA* untuk pakai nama ini, atau ketik nama lengkap yang benar."
+                ),
+                "action": "reply",
+                "data": {},
+            }
+        nama = text_stripped
+
+    # Name confirmed — proceed to filling step 2 (alamat)
+    session.state = "filling"
+    session.current_step = 2
+    data["nama"] = nama
+    data["nik"] = data["nik"]
+    session.set_data(data)
+
+    ack = random.choice(ACK_RESPONSES)
+    await db.commit()
+    return {
+        "reply": (
+            f"{ack}\n\n"
+            f"✅ Nama: *{nama}*\n"
+            f"✅ NIK: *{data['nik']}*\n\n"
             f"Pertanyaan *3* dari *{total}*:\n"
             f"{next_step['prompt']}\n{next_step['example']}"
         ),
