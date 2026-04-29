@@ -60,6 +60,7 @@ def generate_pdf(jenis_surat: str, data: dict, nomor_surat: str) -> str:
         "nama_provinsi": settings.NAMA_PROVINSI,
         "nama_kepala_desa": settings.NAMA_KEPALA_DESA,
         "nip_kepala_desa": settings.NIP_KEPALA_DESA,
+        "alamat_desa": settings.ALAMAT_DESA,
     }
 
     html_content = template.render(context)

@@ -20,6 +20,7 @@ class Settings:
     NAMA_PROVINSI: str = os.getenv("NAMA_PROVINSI", "Jawa Barat")
     NAMA_KEPALA_DESA: str = os.getenv("NAMA_KEPALA_DESA", "Asep Santoso")
     NIP_KEPALA_DESA: str = os.getenv("NIP_KEPALA_DESA", "196501011990011001")
+    ALAMAT_DESA: str = os.getenv("ALAMAT_DESA", "Jl. Raya Desa No. 1")
 
     # Payment Gateway Switch: "midtrans" or "flip"
     PAYMENT_GATEWAY: str = os.getenv("PAYMENT_GATEWAY", "midtrans")

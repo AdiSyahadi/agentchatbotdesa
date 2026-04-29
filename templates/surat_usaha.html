@@ -13,26 +13,56 @@
             line-height: 1.6;
             color: #000;
         }
-        .kop-surat {
+        .kop-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+        .kop-logo-cell {
+            width: 90px;
             text-align: center;
-            border-bottom: 3px double #000;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            vertical-align: middle;
         }
-        .kop-surat h2 {
-            margin: 0;
-            font-size: 14pt;
-            text-transform: uppercase;
+        .kop-logo-box {
+            width: 75px;
+            height: 75px;
+            border: 2px solid #000;
+            margin: 0 auto;
         }
-        .kop-surat h3 {
-            margin: 0;
-            font-size: 16pt;
+        .kop-text-cell {
+            text-align: center;
+            vertical-align: middle;
+            padding-left: 10px;
+        }
+        .kop-kabupaten {
+            font-size: 12pt;
             text-transform: uppercase;
+            margin: 0;
+            letter-spacing: 1px;
+        }
+        .kop-kecamatan {
+            font-size: 12pt;
+            text-transform: uppercase;
+            margin: 0;
+            letter-spacing: 1px;
+        }
+        .kop-desa {
+            font-size: 17pt;
             font-weight: bold;
+            text-transform: uppercase;
+            margin: 3px 0;
         }
-        .kop-surat p {
-            margin: 2px 0;
-            font-size: 10pt;
+        .kop-alamat {
+            font-size: 9pt;
+            margin-top: 2px;
+        }
+        .kop-border-thick {
+            border-bottom: 4px solid #000;
+            margin-bottom: 3px;
+        }
+        .kop-border-thin {
+            border-bottom: 1px solid #000;
+            margin-bottom: 20px;
         }
         .judul-surat {
             text-align: center;
@@ -54,22 +84,22 @@
         .data-table {
             width: 100%;
             margin-bottom: 20px;
-            border-collapse: collapse;
         }
-        .data-table td {
-            padding: 3px 5px 3px 0;
+        .td-label {
+            width: 25%;
+            padding: 3px 5px 3px 40px;
             vertical-align: top;
         }
-        .data-table td:first-child {
-            width: 25%;
-            padding-left: 40px;
-        }
-        .data-table td:nth-child(2) {
+        .td-colon {
             width: 5%;
             text-align: center;
+            padding: 3px 5px;
+            vertical-align: top;
         }
-        .data-table td:nth-child(3) {
+        .td-value {
             width: 70%;
+            padding: 3px 0;
+            vertical-align: top;
         }
         .ttd-section {
             margin-top: 40px;
@@ -92,12 +122,19 @@
     </style>
 </head>
 <body>
-    <div class="kop-surat">
-        <h2>Pemerintah {{ nama_kabupaten }}</h2>
-        <h2>{{ nama_kecamatan }}</h2>
-        <h3>Kantor Kepala Desa {{ nama_desa }}</h3>
-        <p>{{ nama_provinsi }}</p>
-    </div>
+    <table class="kop-table">
+        <tr>
+            <td class="kop-logo-cell"><div class="kop-logo-box"></div></td>
+            <td class="kop-text-cell">
+                <div class="kop-kabupaten">Pemerintah {{ nama_kabupaten }}</div>
+                <div class="kop-kecamatan">{{ nama_kecamatan }}</div>
+                <div class="kop-desa">Kantor Kepala Desa {{ nama_desa }}</div>
+                <div class="kop-alamat">{{ alamat_desa }} &mdash; {{ nama_provinsi }}</div>
+            </td>
+        </tr>
+    </table>
+    <div class="kop-border-thick"></div>
+    <div class="kop-border-thin"></div>
 
     <div class="judul-surat">Surat Keterangan Usaha</div>
     <div class="nomor-surat">Nomor: {{ nomor_surat }}</div>
@@ -107,10 +144,10 @@
     </div>
 
     <table class="data-table">
-        <tr><td>Nama</td><td>:</td><td>{{ nama }}</td></tr>
-        <tr><td>NIK</td><td>:</td><td>{{ nik }}</td></tr>
-        <tr><td>Alamat</td><td>:</td><td>{{ alamat }}</td></tr>
-        <tr><td>Pekerjaan</td><td>:</td><td>{{ pekerjaan }}</td></tr>
+        <tr><td class="td-label">Nama</td><td class="td-colon">:</td><td class="td-value">{{ nama }}</td></tr>
+        <tr><td class="td-label">NIK</td><td class="td-colon">:</td><td class="td-value">{{ nik }}</td></tr>
+        <tr><td class="td-label">Alamat</td><td class="td-colon">:</td><td class="td-value">{{ alamat }}</td></tr>
+        <tr><td class="td-label">Pekerjaan</td><td class="td-colon">:</td><td class="td-value">{{ pekerjaan }}</td></tr>
     </table>
 
     <div class="isi-surat">
@@ -118,9 +155,9 @@
     </div>
 
     <table class="data-table">
-        <tr><td>Nama Usaha</td><td>:</td><td>{{ nama_usaha }}</td></tr>
-        <tr><td>Jenis Usaha</td><td>:</td><td>{{ jenis_usaha }}</td></tr>
-        <tr><td>Alamat Usaha</td><td>:</td><td>{{ alamat_usaha }}</td></tr>
+        <tr><td class="td-label">Nama Usaha</td><td class="td-colon">:</td><td class="td-value">{{ nama_usaha }}</td></tr>
+        <tr><td class="td-label">Jenis Usaha</td><td class="td-colon">:</td><td class="td-value">{{ jenis_usaha }}</td></tr>
+        <tr><td class="td-label">Alamat Usaha</td><td class="td-colon">:</td><td class="td-value">{{ alamat_usaha }}</td></tr>
     </table>
 
     <div class="isi-surat">
