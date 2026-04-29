@@ -121,20 +121,23 @@ def parse_surat_choice(text: str) -> Optional[str]:
     if text_lower in ("3", "usaha", "surat usaha", "surat_usaha"):
         return "usaha"
 
-    # Keyword-based detection for natural language input
-    sktm_keywords = {"sktm", "tidak mampu", "tidakmampu"}
-    domisili_keywords = {"domisili", "domisil"}
-    usaha_keywords = {"usaha", "keterangan usaha"}
+    # Keyword-based detection only for short messages (≤5 words)
+    # Long sentences may contain keywords in a non-request context (e.g. "info tentang usaha")
+    word_count = len(text_lower.split())
+    if word_count <= 5:
+        sktm_keywords = {"sktm", "tidak mampu", "tidakmampu"}
+        domisili_keywords = {"domisili", "domisil"}
+        usaha_keywords = {"usaha", "keterangan usaha"}
 
-    for kw in sktm_keywords:
-        if kw in text_lower:
-            return "sktm"
-    for kw in domisili_keywords:
-        if kw in text_lower:
-            return "domisili"
-    for kw in usaha_keywords:
-        if kw in text_lower:
-            return "usaha"
+        for kw in sktm_keywords:
+            if kw in text_lower:
+                return "sktm"
+        for kw in domisili_keywords:
+            if kw in text_lower:
+                return "domisili"
+        for kw in usaha_keywords:
+            if kw in text_lower:
+                return "usaha"
 
     return None
 
