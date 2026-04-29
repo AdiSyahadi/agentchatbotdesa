@@ -110,9 +110,8 @@ def _get_chain(phone: str, model_name: str) -> Optional[ConversationalRetrievalC
 _QUOTA_EXHAUSTED_MSG = (
     "Maaf, layanan tanya jawab sedang sibuk saat ini.\n\n"
     "Silakan coba lagi dalam beberapa menit, atau gunakan layanan lain:\n"
-    "• Ketik *halo* — menu pembuatan surat\n"
-    "• Ketik *iuran* — pembayaran iuran desa\n"
-    "• Ketik *riwayat* — cek riwayat surat"
+    "\u2022 Ketik *menu* \u2014 menu pembuatan surat\n"
+    "\u2022 Ketik *riwayat* \u2014 cek riwayat surat"
 )
 
 

@@ -333,6 +333,22 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
         steps = STEPS_MAP[session.jenis_surat]
         current = steps[session.current_step]
 
+        # Intercept greetings/help keywords — jangan diterima sebagai jawaban data surat
+        if text_lower in HELP_KEYWORDS or any(kw in text_lower for kw in ("selamat pagi", "selamat siang", "selamat sore", "selamat malam")):
+            total = len(steps)
+            step_num = session.current_step + 1
+            await db.commit()
+            return {
+                "reply": (
+                    f"Halo{' ' + display_name if display_name else ''}! 👋 Kamu sedang mengisi data surat ya.\n\n"
+                    f"Pertanyaan *{step_num}* dari *{total}*:\n"
+                    f"{current['prompt']}\n{current['example']}\n\n"
+                    f"Ketik *batal* kalau ingin membatalkan."
+                ),
+                "action": "reply",
+                "data": {},
+            }
+
         if text_lower in ("ulang", "kembali", "back") and session.current_step > 0:
             session.current_step -= 1
             prev_step = steps[session.current_step]
