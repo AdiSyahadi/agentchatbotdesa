@@ -18,6 +18,24 @@ class WAClient:
             "Content-Type": "application/json",
         }
 
+    async def resolve_lid_phone(self, lid_jid: str) -> str:
+        """Resolve LID JID to real phone number via waapi. Returns phone or empty string."""
+        url = f"{self.base_url}/contacts/resolve-lid"
+        params = {"jid": lid_jid, "instance_id": self.instance_id}
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(url, params=params, headers=self.headers, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json().get("data", {})
+                    phone = data.get("phone_number", "")
+                    if phone:
+                        logger.info(f"LID resolved: {lid_jid} -> {phone}")
+                        return phone
+                logger.warning(f"LID not resolved: {lid_jid} (status {resp.status_code})")
+            except Exception as e:
+                logger.warning(f"resolve_lid_phone error: {e}")
+        return ""
+
     async def send_text(self, to: str, message: str) -> dict:
         url = f"{self.base_url}/messages/send-text"
         payload = {

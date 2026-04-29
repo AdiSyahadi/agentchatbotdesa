@@ -114,13 +114,16 @@ async def webhook_handler(request: Request, session: AsyncSession = Depends(get_
 
     phone = data.get("phone_number") or ""
     # Fallback: extract from 'from'/'sender_jid' when phone_number is null
-    # Handles @s.whatsapp.net (extract number) and @lid (keep full JID for API routing)
     if not phone:
-        from_jid = data.get("from") or data.get("sender_jid") or ""
+        from_jid = data.get("from") or data.get("sender_jid") or data.get("chat_jid") or ""
         if "@s.whatsapp.net" in from_jid:
             phone = from_jid.split("@")[0]
+        elif "@lid" in from_jid:
+            # Try to resolve LID to real phone number via waapi
+            resolved = await wa_client.resolve_lid_phone(from_jid)
+            phone = resolved if resolved else from_jid  # fallback ke LID JID (waapi support send ke @lid)
         elif from_jid:
-            phone = from_jid  # Keep full JID e.g. "77864099643580@lid"
+            phone = from_jid
     contact_name = data.get("contact_name", "")
 
     if msg_type == "button_response":
