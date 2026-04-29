@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatSession, WargaRegistration, RT, IuranType, IuranTagihan, Payment
+from app.models import ChatSession, WargaRegistration
 from app.config import settings
 from app.validators import (
     validate_nama, validate_nik, validate_alamat,
@@ -103,7 +103,6 @@ def _get_cancel_msg(name: str = "") -> str:
 HELP_KEYWORDS = {"halo", "hai", "hi", "hello", "menu", "mulai", "start", "help", "bantuan"}
 CANCEL_KEYWORDS = {"batal", "cancel", "keluar", "exit", "stop"}
 DAFTAR_KEYWORDS = {"daftar", "register", "registrasi", "pendaftaran"}
-IURAN_KEYWORDS = {"iuran", "bayar", "bayar iuran", "tagihan", "pembayaran"}
 RIWAYAT_KEYWORDS = {"riwayat", "history", "surat saya", "daftar surat"}
 TANYA_KEYWORDS = {"tanya", "info", "informasi", "info desa", "program desa", "dana desa",
                    "transparansi", "anggaran", "prosedur", "jadwal", "pelayanan",
@@ -261,49 +260,6 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
     if session.state == "registering":
         return await _handle_registering(db, session, phone, text, display_name)
 
-    if text_lower in IURAN_KEYWORDS:
-        # Check warga registration first
-        existing = await db.execute(
-            select(WargaRegistration).where(WargaRegistration.no_wa == phone)
-        )
-        reg = existing.scalar_one_or_none()
-        if not reg or reg.status != "approved":
-            await db.commit()
-            return {
-                "reply": "Maaf, Anda harus *terdaftar dan terverifikasi* untuk menggunakan layanan pembayaran iuran.\n\nKetik *daftar* untuk mendaftar.",
-                "action": "reply",
-                "data": {},
-            }
-        # Start iuran flow
-        session.state = "paying_iuran"
-        session.current_step = 0
-        session.set_data({"warga_id": reg.id, "warga_nama": reg.nama})
-        # Get active iuran types
-        result = await db.execute(select(IuranType).where(IuranType.is_active == True))
-        iuran_types = result.scalars().all()
-        if not iuran_types:
-            _reset_session(session)
-            await db.commit()
-            return {"reply": "Belum ada jenis iuran yang tersedia saat ini.", "action": "reply", "data": {}}
-        type_list = "\n".join(
-            f"*{i+1}.* {t.nama} — Rp {t.nominal:,.0f}".replace(",", ".")
-            for i, t in enumerate(iuran_types)
-        )
-        await db.commit()
-        return {
-            "reply": (
-                f"💰 *Pembayaran Iuran Desa {settings.NAMA_DESA}*\n\n"
-                f"Pilih jenis iuran:\n{type_list}\n\n"
-                f"Balas dengan *nomor* pilihan Anda.\n"
-                f"Ketik *batal* untuk membatalkan."
-            ),
-            "action": "reply",
-            "data": {},
-        }
-
-    if session.state == "paying_iuran":
-        return await _handle_paying_iuran(db, session, phone, text, display_name)
-
     if session.state == "idle":
         if text_lower in HELP_KEYWORDS:
             session.state = "choosing"
@@ -329,7 +285,6 @@ async def process_message(db: AsyncSession, phone: str, message: str, contact_na
                     "Maaf, layanan tanya jawab sedang sibuk saat ini.\n\n"
                     "Silakan gunakan layanan lain:\n"
                     "• Ketik *menu* — menu pembuatan surat\n"
-                    "• Ketik *iuran* — pembayaran iuran desa\n"
                     "• Ketik *riwayat* — cek riwayat surat\n\n"
                     "Atau coba tanya lagi dalam beberapa menit."
                 ),
@@ -660,220 +615,3 @@ async def _handle_registering(db: AsyncSession, session: ChatSession, phone: str
     return {"reply": "Terjadi kesalahan pada proses pendaftaran. Silakan ketik *daftar* untuk mengulang.", "action": "reply", "data": {}}
 
 
-async def _handle_paying_iuran(db: AsyncSession, session: ChatSession, phone: str, text: str, display_name: str) -> dict:
-    """Handle iuran payment flow.
-    Step 0: Pick iuran type
-    Step 1: Pick RT
-    Step 2: Confirm (ya/tidak) → create QRIS + Snap → send QR image + fallback link
-    """
-    from app.payment_gateway import get_gateway
-    import uuid
-
-    data = session.get_data()
-    text_lower = text.strip().lower()
-
-    if session.current_step == 0:
-        # Expecting iuran type selection (number)
-        result = await db.execute(select(IuranType).where(IuranType.is_active == True))
-        iuran_types = result.scalars().all()
-
-        try:
-            idx = int(text.strip()) - 1
-            if idx < 0 or idx >= len(iuran_types):
-                raise ValueError
-            selected = iuran_types[idx]
-        except (ValueError, IndexError):
-            type_list = "\n".join(
-                f"*{i+1}.* {t.nama} — Rp {t.nominal:,.0f}".replace(",", ".")
-                for i, t in enumerate(iuran_types)
-            )
-            await db.commit()
-            return {
-                "reply": f"⚠️ Pilihan tidak valid. Silakan pilih nomor:\n{type_list}",
-                "action": "reply",
-                "data": {},
-            }
-
-        data["iuran_type_id"] = selected.id
-        data["iuran_type_nama"] = selected.nama
-        data["iuran_nominal"] = selected.nominal
-        session.set_data(data)
-        session.current_step = 1
-
-        # Show RT list
-        rt_result = await db.execute(select(RT).where(RT.is_active == True).order_by(RT.nomor_rw, RT.nomor_rt))
-        rts = rt_result.scalars().all()
-        rt_list = "\n".join(
-            f"*{i+1}.* RT {r.nomor_rt} / RW {r.nomor_rw} — {r.nama_ketua or '-'}"
-            for i, r in enumerate(rts)
-        )
-        await db.commit()
-        return {
-            "reply": (
-                f"✅ Jenis iuran: *{selected.nama}*\n"
-                f"Nominal: *Rp {selected.nominal:,.0f}*\n\n".replace(",", ".") +
-                f"Pilih RT Anda:\n{rt_list}\n\n"
-                f"Balas dengan *nomor* pilihan Anda."
-            ),
-            "action": "reply",
-            "data": {},
-        }
-
-    if session.current_step == 1:
-        # Expecting RT selection (number)
-        rt_result = await db.execute(select(RT).where(RT.is_active == True).order_by(RT.nomor_rw, RT.nomor_rt))
-        rts = rt_result.scalars().all()
-
-        try:
-            idx = int(text.strip()) - 1
-            if idx < 0 or idx >= len(rts):
-                raise ValueError
-            selected_rt = rts[idx]
-        except (ValueError, IndexError):
-            rt_list = "\n".join(
-                f"*{i+1}.* RT {r.nomor_rt} / RW {r.nomor_rw} — {r.nama_ketua or '-'}"
-                for i, r in enumerate(rts)
-            )
-            await db.commit()
-            return {
-                "reply": f"⚠️ Pilihan tidak valid. Silakan pilih nomor:\n{rt_list}",
-                "action": "reply",
-                "data": {},
-            }
-
-        data["rt_id"] = selected_rt.id
-        data["rt_label"] = f"RT {selected_rt.nomor_rt} / RW {selected_rt.nomor_rw}"
-        session.set_data(data)
-        session.current_step = 2
-
-        nominal_str = f"Rp {data['iuran_nominal']:,.0f}".replace(",", ".")
-        bulan = datetime.utcnow().strftime("%B %Y")
-        data["bulan"] = datetime.utcnow().strftime("%Y-%m")
-        session.set_data(data)
-
-        await db.commit()
-        return {
-            "reply": (
-                f"📋 *Ringkasan Pembayaran*\n\n"
-                f"• Jenis: *{data['iuran_type_nama']}*\n"
-                f"• RT: *{data['rt_label']}*\n"
-                f"• Periode: *{bulan}*\n"
-                f"• Nominal: *{nominal_str}*\n"
-                f"• Nama: *{data['warga_nama']}*\n\n"
-                f"Lanjutkan pembayaran?\n"
-                f"*1.* YA — Buat tagihan\n"
-                f"*2.* TIDAK — Batalkan\n\n"
-                f"Balas dengan *nomor* pilihan."
-            ),
-            "action": "reply",
-            "data": {},
-        }
-
-    if session.current_step == 2:
-        # Expecting confirmation: 1=Ya, 2=Tidak
-        if text_lower in ("2", "tidak", "no", "batal"):
-            _reset_session(session)
-            await db.commit()
-            return {
-                "reply": "Pembayaran dibatalkan. Ketik *iuran* untuk mengulang atau *menu* untuk menu lain.",
-                "action": "reply",
-                "data": {},
-            }
-
-        if text_lower not in ("1", "ya", "yes", "ok", "oke", "y"):
-            await db.commit()
-            return {
-                "reply": "⚠️ Balas *1* (YA) untuk lanjut atau *2* (TIDAK) untuk batal.",
-                "action": "reply",
-                "data": {},
-            }
-
-        order_id = f"IURAN-{data['warga_id']}-{data['bulan']}-{uuid.uuid4().hex[:8].upper()}"
-        nominal = data["iuran_nominal"]
-        item_name = f"{data['iuran_type_nama']} {data['rt_label']} {data['bulan']}"
-
-        # Create tagihan record
-        tagihan = IuranTagihan(
-            warga_id=data["warga_id"],
-            iuran_type_id=data["iuran_type_id"],
-            rt_id=data["rt_id"],
-            bulan=data["bulan"],
-            nominal=nominal,
-            status="pending",
-        )
-        db.add(tagihan)
-        await db.flush()
-
-        # Create QRIS transaction for direct QR image
-        gw = get_gateway()
-        qris_result = await gw.create_qris(
-            order_id=order_id,
-            amount=nominal,
-            item_name=item_name,
-            customer_name=data["warga_nama"],
-            customer_phone=phone,
-        )
-
-        # Also create Snap/payment link as fallback
-        snap_order_id = f"{order_id}-SNAP"
-        snap_result = await gw.create_snap(
-            order_id=snap_order_id,
-            amount=nominal,
-            item_name=item_name,
-            customer_name=data["warga_nama"],
-            customer_phone=phone,
-        )
-        redirect_url = snap_result.get("redirect_url", "") if snap_result.get("success") else ""
-        # Flip returns redirect_url in qris_result too
-        if not redirect_url:
-            redirect_url = qris_result.get("redirect_url", "")
-
-        if qris_result.get("success"):
-            payment = Payment(
-                tagihan_id=tagihan.id,
-                order_id=order_id,
-                amount=nominal,
-                payment_type="qris",
-                status="pending",
-                midtrans_response=str(qris_result),
-            )
-            db.add(payment)
-            _reset_session(session)
-            await db.commit()
-
-            nominal_str = f"Rp {nominal:,.0f}".replace(",", ".")
-            qr_url = qris_result.get("qr_url", "")
-            expiry = qris_result.get("expiry_time", "15 menit")
-
-            return {
-                "reply": (
-                    f"✅ *Tagihan Berhasil Dibuat!*\n\n"
-                    f"• Order ID: `{order_id}`\n"
-                    f"• Nominal: *{nominal_str}*\n"
-                    f"• Berlaku hingga: _{expiry}_\n\n"
-                    f"Scan QR Code di bawah ini dari aplikasi m-banking atau e-wallet (GoPay, OVO, DANA, ShopeePay, dll) 👇"
-                ),
-                "action": "send_qris",
-                "data": {
-                    "phone": phone,
-                    "qr_url": qr_url,
-                    "order_id": order_id,
-                    "redirect_url": redirect_url,
-                },
-            }
-        else:
-            await db.rollback()
-            session_fresh = await get_or_create_session(db, phone)
-            _reset_session(session_fresh)
-            await db.commit()
-            error_msg = qris_result.get("error", "Unknown error")
-            return {
-                "reply": f"❌ Gagal membuat tagihan.\nError: _{error_msg}_\n\nSilakan coba lagi nanti atau ketik *iuran* untuk mengulang.",
-                "action": "reply",
-                "data": {},
-            }
-
-    # Fallback
-    _reset_session(session)
-    await db.commit()
-    return {"reply": "Terjadi kesalahan pada proses pembayaran. Silakan ketik *iuran* untuk mengulang.", "action": "reply", "data": {}}

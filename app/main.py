@@ -166,8 +166,6 @@ async def webhook_handler(request: Request, session: AsyncSession = Depends(get_
                 await _handle_send_list_menu(phone, reply, result["data"])
             elif action == "send_confirm_buttons":
                 await _handle_send_confirm_buttons(phone, reply, result["data"])
-            elif action == "send_qris":
-                await _handle_send_qris(phone, reply, result["data"])
             else:
                 if reply:
                     await wa_client.send_text(phone, reply)
@@ -202,39 +200,6 @@ async def _handle_send_confirm_buttons(phone: str, fallback_text: str, data: dic
     # NOTE: Sama seperti di atas — Baileys tidak render buttons.
     # Fallback text sudah didesain dengan angka 1/2/3 yang mudah dipakai.
     await wa_client.send_text(phone, fallback_text)
-
-
-async def _handle_send_qris(phone: str, text: str, data: dict):
-    """Send QRIS payment: text summary → QR image → fallback Snap link."""
-    if text:
-        await wa_client.send_text(phone, text)
-    qr_url = data.get("qr_url", "")
-    redirect_url = data.get("redirect_url", "")
-    order_id = data.get("order_id", "")
-
-    if qr_url:
-        await asyncio.sleep(5)
-        result = await wa_client.send_image(phone, qr_url, caption=f"QRIS — {order_id}\nScan dari m-banking atau e-wallet manapun")
-        if "error" in result:
-            logger.error(f"Failed to send QRIS image to {phone}: {result}")
-            # Fallback: send QR URL as text
-            await asyncio.sleep(2)
-            fallback = f"⚠️ Gagal mengirim gambar QR.\n\nLink QR Code:\n{qr_url}"
-            if redirect_url:
-                fallback += f"\n\nAtau bayar via halaman ini:\n{redirect_url}"
-            await wa_client.send_text(phone, fallback)
-        elif redirect_url:
-            # QR sent successfully — also send Snap link as alternative
-            await asyncio.sleep(3)
-            await wa_client.send_text(
-                phone,
-                f"Atau bisa juga bayar via link berikut (pilih metode lain seperti Transfer Bank):\n{redirect_url}"
-            )
-    else:
-        if redirect_url:
-            await wa_client.send_text(phone, f"Bayar melalui link berikut:\n{redirect_url}")
-        else:
-            await wa_client.send_text(phone, "⚠️ QR Code tidak tersedia. Silakan ketik *iuran* untuk mengulang.")
 
 
 async def _handle_rag_question(phone: str, data: dict):
@@ -363,91 +328,6 @@ async def _handle_generate_surat(session: AsyncSession, data: dict):
 
     logger.error(f"Gagal kirim dokumen ke {phone} setelah 3 percobaan")
     await wa_client.send_text(phone, f"Surat *{surat_name}* Anda sudah dibuat (No: {nomor_surat}), namun gagal dikirim otomatis. Silakan hubungi petugas desa.")
-
-
-@app.post("/payment/webhook")
-@app.post("/midtrans/webhook")
-async def payment_webhook(request: Request, session: AsyncSession = Depends(get_session)):
-    """
-    Generic payment webhook — works with Midtrans and Flip.
-    Signature/token verification is delegated to the active payment gateway adapter.
-    Midtrans: POST JSON with signature_key in body.
-    Flip: POST JSON with X-Callback-Token in header.
-    """
-    from app.payment_gateway import get_gateway
-    import json as json_module
-
-    gw = get_gateway()
-
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
-
-    # Verify signature/token via gateway adapter
-    headers_dict = dict(request.headers)
-    if not gw.verify_webhook(headers_dict, body):
-        logger.warning(f"Payment webhook signature/token mismatch")
-        return JSONResponse(status_code=403, content={"error": "Invalid signature"})
-
-    # Parse webhook body into standardized format
-    parsed = gw.parse_webhook_status(body)
-    order_id = parsed["order_id"]
-    new_status = parsed["transaction_status"]
-
-    logger.info(f"Payment webhook: order_id={order_id} status={new_status}")
-
-    # Find payment record
-    from app.models import Payment as PaymentModel, IuranTagihan as TagihanModel, WargaRegistration
-
-    result = await session.execute(
-        select(PaymentModel).where(PaymentModel.order_id == order_id)
-    )
-    payment = result.scalar_one_or_none()
-
-    if not payment:
-        logger.warning(f"Payment webhook: payment not found for order_id={order_id}")
-        return JSONResponse(content={"status": "ok", "message": "payment not found"})
-
-    # Update payment status
-    old_status = payment.status
-    payment.status = new_status
-    payment.midtrans_response = json_module.dumps(body, ensure_ascii=False)
-    payment.updated_at = datetime.utcnow()
-
-    # If payment settled, update tagihan
-    if payment.status == "settlement" and old_status != "settlement":
-        tagihan_result = await session.execute(
-            select(TagihanModel).where(TagihanModel.id == payment.tagihan_id)
-        )
-        tagihan = tagihan_result.scalar_one_or_none()
-        if tagihan:
-            tagihan.status = "paid"
-            tagihan.paid_at = datetime.utcnow()
-
-            # Get warga info for WA notification
-            warga_result = await session.execute(
-                select(WargaRegistration).where(WargaRegistration.id == tagihan.warga_id)
-            )
-            warga = warga_result.scalar_one_or_none()
-            if warga and warga.no_wa:
-                nominal_str = f"Rp {payment.amount:,.0f}".replace(",", ".")
-                try:
-                    await wa_client.send_text(
-                        warga.no_wa,
-                        f"✅ *Pembayaran Berhasil!*\n\n"
-                        f"• Order ID: `{order_id}`\n"
-                        f"• Nominal: *{nominal_str}*\n"
-                        f"• Status: *Lunas*\n\n"
-                        f"Terima kasih atas pembayaran Anda! 🙏"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send payment confirmation to {warga.no_wa}: {e}")
-
-    await session.commit()
-    logger.info(f"Payment webhook processed: {order_id} {old_status} → {payment.status}")
-
-    return JSONResponse(content={"status": "ok"})
 
 
 if __name__ == "__main__":
